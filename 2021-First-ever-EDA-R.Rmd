@@ -52,7 +52,6 @@ lounge = lounge %>% mutate(airport_name = airport)
 
 <br/><br/>
 ```{r include = FALSE}
-# поскольку нас интересуют именно аэропорты, логично проверить датасет airport, но есть подозрения, что там отзывов о вай фай практически нет
 
 check_na = airport %>% select(wifi_connectivity_rating) %>% mutate(isna = is.na(wifi_connectivity_rating))
 length(check_na$isna) - sum(check_na$isna) #из тысячи возможных доступен всего лишь 31 отзыв, но все же ответим сначала строго на поставленный вопрос
@@ -146,7 +145,6 @@ ggplot(data = airport1) +
 ```
 <br/><br/>
 ```{r include = FALSE}
-#Снова те же страны что и в вопросе 1, проверим, может и все остальное низко оценивают преимущественно пассажаиры из тех же стран (просто по табличкам)
 
 airline1 = airline %>% filter(overall_rating < 5) %>% select(author_country) %>%  na.omit(author_country, overall_rating)%>% group_by(author_country)%>%count()%>% ungroup %>% top_n(4,n)
 
