@@ -1,0 +1,269 @@
+---
+title: "HW 2: lauching kickstarter project"
+author: 'Denis Vorontsov'
+output: html_document
+---
+<br/><br/>
+In my report, I will describe the methods I used to determine the characteristics that a project should have to be successful on the kickstarter platform. First, I checked specific hypotheses that brought me closer to understanding the key success factors. Then, I used automatic decision tree construction to compare with my model and at the same time propose a better model from my point of view.
+```{r include=FALSE}
+library(readr)
+kickstarter = read_csv("~/shared/minor2_2020/1-Intro/hw2/kickstarter.csv")
+usd = read_csv("~/shared/minor2_2020/1-Intro/hw2/usd_goals.csv")
+library(dplyr)
+#kickstarter = kickstarter %>% left_join(kickstarter,usd,by = "id") %>% select(-goal.x, -goal.y)
+kickstarter = kickstarter %>% mutate(goal_USD = usd$usd_goal_real) %>% select(-currency, -goal) %>% na.omit()
+library(rpart)
+library(rpart.plot)
+```
+
+```{r include=FALSE}
+head(kickstarter)
+```
+
+```{r include=FALSE}
+str(kickstarter)
+```
+ 
+```{r include=FALSE}
+
+checking = kickstarter %>% select(state) %>% unique()
+kickstarter = kickstarter %>% mutate(state = factor(state),main_category = factor(main_category))
+```
+## Hypothesis check №1
+
+First of all, I determined which projects in general it would be advisable to offer on the kickstarter platform. To do this, I decided to check the most attractive project categories. 
+```{r include=FALSE}
+library("ggsci")
+library("ggplot2")
+library("gridExtra")
+
+our_categories = kickstarter %>% 
+  #filter(state == "successful") %>% 
+  group_by(main_category) %>% count()
+  #count() %>% ungroup() %>% top_n(10)
+
+#ggplot(data = our_categories, aes(x = our_categories, y = n, fill = "state" )) +
+  #geom_bar(stat = "identity", position = "dodge")
+```
+<br/><br/>
+```{r fig.align = 'left', echo = FALSE}
+ggplot(data = kickstarter, aes(x = main_category, fill = state )) +
+  geom_bar(position = "fill") +
+  theme_bw() +
+  scale_fill_tron() + 
+  ggtitle("Proportion of successful and failed projects for each category") +
+  xlab("Main categories") +
+  ylab("Proportion") +
+  theme(plot.title = element_text(hjust = 0.5), panel.border = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), panel.background = element_rect(fill = "white", colour = "white"),axis.text.y=element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_blank(), axis.text.x = element_text(angle = 45, vjust = 0.9, hjust = 0.7)) +
+labs(fill = "")
+```
+<br/><br/>
+The graph highlights three favorable directions in which to start developing a project - Comics, Dance, and Theater. However, we must check if the results obtained are not random. For this, I used the chi-square test:
+
+**H0: There is no statistically significant difference in the distribution of successful and failed projects in each of the main categories.**
+
+**H1: There is a statistically significant difference between categories regarding the distribution of successful and failed projects.**
+```{r include = FALSE}
+#kickstarter_check = kickstarter %>% filter(main_category == "Comics" | main_category == "Dance" | main_category == "Theater") %>% mutate(main_category = factor(main_category))
+library(coin)
+library(survival)
+#chisq_test(state ~ main_category, data = kickstarter_demonstr)
+#chisq_test(state ~ main_category, data = kickstarter_check) 
+chisq_test(state ~ main_category, data = kickstarter) 
+```
+
+p-value = 4.385e-05: The null hypothesis was false, and we have a statistically significant difference between categories. The proportions of successful projects for the top three categories are pesented further. 
+```{r include = FALSE}
+table = kickstarter %>% filter(state == "successful") %>% group_by(main_category) %>% count()
+table2 =  kickstarter  %>% group_by(main_category) %>% count()
+table = left_join(table,table2,by = "main_category")
+table = table %>% mutate(n.z = n.x/n.y) %>% select(-n.x, -n.y) 
+table = table %>% ungroup %>% top_n(3)
+```
+```{r include = FALSE}
+a = "69%"
+b = "63%"
+c = "60%"
+kek = data.frame(a,b,c) 
+colnames(kek) = c("Comics", "Dance", "Theater") 
+#rownames(kek) = c("success")
+kek
+```
+
+*Comics - 69%*
+
+*Dance - 63%*
+
+*Theater - 60%*
+
+
+## Hypothesis Testing #2 
+Another project characteristic I am confident about is the amount needed to be raised. For initial assessment, boxplots combined with scatter plots were suitable for easier perception:
+
+<br/><br/>
+```{r fig.align = 'left', echo = FALSE, warning=FALSE}
+options(scipen=9999)
+
+ggplot(kickstarter, aes(x = state, y = goal_USD, color = state))+
+  geom_point(alpha = 0.1, size = 3, shape = 15) +
+  ylim(0,500000)+
+  theme_bw()+
+  scale_color_tron() +
+  theme(plot.title = element_text(hjust = 0.5), panel.border = element_blank(),
+  
+  panel.grid.minor = element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_blank(),legend.title = element_blank(), legend.position = "none") + 
+  ggtitle("Сorrelation between state of the project and \n the amount of money expected to earn\n when started")
+```
+<br/><br/>
+
+```{r fig.align = 'left', echo = FALSE, warning=FALSE}
+ggplot(kickstarter, aes(x = state, y = goal_USD, color = state))+
+  geom_boxplot()+
+  ylim(0,50000) +
+  theme_bw()+
+  scale_color_tron() +
+  theme(
+  plot.title = element_text(hjust = 0.5), panel.border = element_blank(),
+  panel.grid.minor = element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_blank(),legend.title = element_blank(), legend.position = "none")+
+  ggtitle("A final state of the project and length of crowdfunding period \ncodependence")
+```
+<br/><br/>
+
+Formulating hypotheses:
+
+**H0: The amount specified as the final goal does not affect the success of the project.**
+
+**H1: The amount specified affects the success of the project.**
+
+```{r include = FALSE}
+str(kickstarter)  #проверим форматы нужных колонок
+#independence_test(state ~ goal_USD, data = kickstarter)
+t.test(goal_USD ~ state, data = kickstarter) 
+```
+
+
+**p-value = 0.000001412**
+
+The obtained p-value = 0.000001412 suggests a significant relationship between the variables responsible for project success and the amount being raised. This relationship can also be noted when building a predictive model.
+
+## Hypothesis Testing #3
+
+The last aspect I wanted to explore within the allotted time is the dependence on fundraising time. I created a new variable, measured in days, by subtracting the project launch date from the deadline date and tested the dependence of project success on this variable, starting with boxplots.
+
+```{r include = FALSE}
+library(lubridate)
+kickstarter$deadline = ymd(kickstarter$deadline)
+kickstarter$launched = ymd_hms(kickstarter$launched)
+kickstarter$launched = date(kickstarter$launched)
+
+#kickstarter$launched = ymd(kickstarter$launched)
+#str(kickstarter)
+kickstarter = kickstarter %>% mutate(crd_fnd_time =  (deadline - launched)/ddays(1))
+head(kickstarter)
+```
+<br/><br/>
+```{r include = FALSE}
+#table = kickstarter %>% group_by(state) %>% summarise(meanGR = mean(crd_fnd_time))
+#table
+```
+```{r fig.align = 'left', echo = FALSE}
+ggplot(kickstarter, aes(x = state, y = crd_fnd_time, color = state)) +
+  geom_boxplot() +
+  theme_bw()+
+  scale_color_tron() +
+  theme(
+  plot.title = element_text(hjust = 0.5), panel.border = element_blank(),
+  
+  panel.grid.minor = element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_blank(),legend.title = element_blank(), legend.position = "none") +
+  ggtitle("Length of crowdfunding period depending \n on the final state of the project") +
+  ylab("crowdfunding time")
+  
+  
+```
+<br/><br/>
+Unfortunately, the difference is not as impressive as expected. However, since there is a significant amount of data, I proceeded to formulate and test hypotheses.
+
+**H0: The duration of the fundraising period does not affect the success of the project.**
+
+**H1: The duration of the fundraising period affects the success of the project.**
+
+
+```{r include = FALSE}
+kickstarter %>% filter(state == "successful") %>% select(crd_fnd_time) %>% summary()
+kickstarter %>% filter(state == "failed") %>% select(crd_fnd_time) %>% summary()
+#существенной разницы никаким из способов не обнаружил
+```
+```{r include = FALSE}
+#independence_test(state ~ crd_fnd_time, data = kickstarter)
+t.test(crd_fnd_time ~ state, data = kickstarter)
+```
+The obtained **p-value ≈ 0** indicates that there is a non-random difference in the average duration of fundraising periods. However, a difference of 3 days may not instill confidence in the importance of this indicator, at least for manual model construction.
+
+### Building Predictive Models
+
+## Manual Approach
+In the previous stage, I finished testing my main hypotheses. Before moving on to automatic decision tree construction, I attempted to build my model. Of course, I didn't calculate numerous Gini indices manually since rpart was expected to do this for us in the next step. However, I endeavored to construct a thoughtful model.
+
+I would also like to note that I exclude the category "beckers" from potentially influencing factors since it essentially is the project's outcome. It represents the number of people who supported the project during the fundraising period, which cannot be known when launching the project. Additionally, I do not consider the variable "country" as it is practically an uncontrollable circumstance - the project is launched in the country where the team or individual resides/develops the project. Moreover, as I later discovered, building a tree with the inclusion of the "country" and "category" variables, which significantly complicate the readability of the tree, adds no more than 1.5% accuracy to our model.
+
+
+```{r include = FALSE}
+library(caret)
+kickstarter = kickstarter %>% mutate(model1 = factor(case_when(((main_category == "Comics")&(goal_USD <= 15000))|((main_category == "Dance")&(goal_USD <= 15000))|((main_category == "Theater")&(goal_USD <= 15000))|(goal_USD <= 10000) ~ "successful",  T ~ "failed")))
+confusionMatrix(kickstarter$model1, kickstarter$state)
+```
+```{r include = FALSE}
+tail(kickstarter) #проверим наш основной датасет с новой переменной
+```
+I decided to categorize projects in the fields of comics, dance, and theater as successful if their goal was 15,000 or less, while for all other categories, the threshold was 10,000. However, I did not achieve accuracy greater than 60%. In the primitiv model I proposed, a high proportion of projects labeled as successful by the model among the actually successful projects was observed. However, overall accuracy suffers due to a large number of false positives, which exceeds the number of true positives by more than one and a half times. As you can see, I attempted to build a model based on two, rather than three elements, as I will do when constructing the tree.
+
+**The accuracy of my model obtained was 55%.**
+
+## Decision Tree Construction
+Consequently, I expected slightly higher accuracy (around 70%) from the model automatically constructed using a decision tree. The result of my work with the rpart package can be considered the tree presented below:
+
+```{r include = FALSE}
+set.seed(1488)
+train = kickstarter %>% sample_frac(0.8)
+```
+```{r include = FALSE}
+fc_tree = rpart(state ~ main_category + crd_fnd_time + goal_USD, method = "class", data = train, control=rpart.control(cp= 0.00122324))
+printcp(fc_tree)
+```
+
+
+```{r fig.align = 'left', echo = FALSE}
+prp(fc_tree, cex = 0.45, box.col = "#FFFF00")
+```
+<br/><br/>
+Overall, the presented model is not the only one I tried, but it is the most generalizing, and illustrative. **Its accuracy was 66.3%**, which may not be the limit. I successfully applied the approach of splitting the dataset into train and test samples, selected the optimal complexity parameter, and therefore, I am satisfied with the resulting universal model.
+```{r include = FALSE}
+#printcp(fc_tree)
+```
+
+
+```{r include = FALSE}
+#plotcp(fc_tree)
+```
+ 
+```{r include = FALSE}
+test = anti_join(kickstarter, train)
+train = train %>% mutate(tree_prediction = predict(fc_tree, train, type = "class"))
+test = test %>% mutate(tree_prediction = predict(fc_tree, test, type = "class"))
+confusionMatrix(train$tree_prediction, train$state)
+confusionMatrix(test$tree_prediction, test$state)
+```
+```{r include = FALSE }
+kickstarter = kickstarter %>% mutate(tree_model = predict(fc_tree, kickstarter, type = "class"))
+```
+```{r include = FALSE }
+head(kickstarter)
+```
+```{r include = FALSE}
+confusionMatrix(kickstarter$tree_model, kickstarter$state)
+```
+
+## Conclusion:
+I believe that for preliminary analysis, a model with an accuracy close to 70% is a good result. I am confident that with more thorough examination of the provided data, using the stringr package, I can search for patterns in project names, as well as spend more time on dates, looking for patterns by days of the week. Additionally, those who launch a project should consider its advertising, as in the vast majority of cases, successful projects are those with numerous supporters. Therefore, the marketing aspect should not be overlooked.
