@@ -1,0 +1,237 @@
+---
+title: 'HW 1: Identification and Analysis of Air Transport Issues'
+author: "Denis Vorontsov"
+output: html_document
+---
+
+## Task
+
+Based on the data (and the questions provided), try to find out:
+
+* what issues exist in air transportation
+* what improvements can be suggested based on the data analysis
+
+#### Data Loading and Transformation
+
+```{r message = FALSE, warning=FALSE, include = FALSE}
+library(dplyr)
+library(ggplot2)
+library(R3PO)
+library(stringr)
+library(ggsci)
+library(devtools)
+
+install.packages("scales")                                   
+library(scales)
+```
+
+```{r include = FALSE}
+airline = get_hw1_airline_df()
+airport = get_hw1_airport_df()
+seat = get_hw1_seat_df()
+lounge = get_hw1_lounge_df()
+
+get_hw1_questions()
+```
+
+To answer the third question, it will be necessary to correct the format of the row in the 'airport_name' column and change the column name to 'airport_name' in the 'lounge' table for successful data utilization from two different tables. Also, wherever necessary, I removed rows with missing NA values.
+
+```{r include = FALSE}
+airport = airport %>% mutate(airport_name = str_replace_all(airport_name, "-"," ")) %>% mutate(airport_name = str_to_title(airport_name)) 
+lounge = lounge %>% mutate(airport_name = airport)
+
+```
+
+
+### Questions
+### Question 1
+
+**Question: Which countries' citizens rate airport wi-fi connectivity the lowest?**
+
+**Data: To answer the question, we need tables 'airport' and 'lounge'.**
+
+<br/><br/>
+```{r include = FALSE}
+# поскольку нас интересуют именно аэропорты, логично проверить датасет airport, но есть подозрения, что там отзывов о вай фай практически нет
+
+check_na = airport %>% select(wifi_connectivity_rating) %>% mutate(isna = is.na(wifi_connectivity_rating))
+length(check_na$isna) - sum(check_na$isna) #из тысячи возможных доступен всего лишь 31 отзыв, но все же ответим сначала строго на поставленный вопрос
+```
+
+```{r include=FALSE}
+airport1 = airport %>% select(author_country, wifi_connectivity_rating) %>% na.omit(wifi_connectivity_rating) %>% filter(wifi_connectivity_rating < 3) %>% group_by(author_country) %>% count() %>% ungroup
+```
+
+```{r fig.align = 'left', echo = FALSE,}
+
+ggplot(data = airport1) +
+        geom_bar(aes(y = reorder(author_country, -n), x = n), stat = "identity", fill = "#34ccff") + 
+        geom_bar(top_n(airport1, 3, n), mapping = aes(y = author_country, x = n),stat = "identity",fill = "#2f8dff" ) +
+        xlab("Number of feedbacks") +
+        theme(axis.title.y=element_blank(), plot.title = element_text(hjust = 0.5),panel.border = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), panel.background = element_rect(fill = "white", colour = "white"),axis.text.y=element_blank(), axis.ticks.y = element_blank(), axis.ticks.x = element_blank()) +
+        ggtitle("Negative airpot wi-fi feedbacks by\ncitizens of different countries") +
+        geom_text(aes(x=n, y = author_country, label = author_country), colour = "#5B5B5B", hjust = -0.1, size = 3.5 ) +
+   
+  xlim(0,8.5)
+  
+
+        
+```
+
+```{r include = FALSE}
+#на крайний случай, можно взять данные из датасета lounge, если там все в порядке
+check_na2 = lounge %>% select(wifi_connectivity_rating)%>% na.omit(wifi_connectivity_rating) %>% mutate(isna = is.na(wifi_connectivity_rating))
+length(check_na2$isna) - sum(check_na2$isna) 
+```
+
+
+```{r include = FALSE}
+lounge1 = lounge %>% select(author_country, wifi_connectivity_rating, ) %>% na.omit(wifi_connectivity_rating) %>% filter(wifi_connectivity_rating < 3) %>% group_by(author_country) %>% count() %>% ungroup
+
+lounge1 = lounge1[with(lounge1, order(-n)),]
+lounge1 = lounge1[1:10,]
+```
+<br/><br/>
+```{r fig.align = 'left', echo=FALSE}
+
+ggplot(data = lounge1) +
+        geom_bar(aes(y = reorder(author_country, -n), x = n), stat = "identity" , fill = "#34ccff" ) + 
+        geom_bar(top_n(lounge1, 3, n), mapping = aes(y = author_country, x = n),stat = "identity", fill = "#2f8dff") +
+        xlab("Number of feedbacks") +
+        ggtitle("Negative lounge wi-fi feedbacks\n by citizens of different countries") +
+        theme(axis.title.y=element_blank(), plot.title = element_text(hjust = 0.5),panel.border = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), panel.background = element_rect(fill = "white", colour = "white"), axis.text.y=element_blank(), axis.ticks.y = element_blank(),axis.ticks.x = element_blank()) +
+  xlim(0,40) +
+  geom_text(aes(x=n, y = author_country, label = author_country), colour = "#5B5B5B", hjust = -0.1, size = 3.5 )
+             
+```
+
+```{r include = FALSE}
+check_na3 = airport %>% select(type_traveller) %>% filter(is.na(type_traveller))
+length(check_na3$type_traveller) #к сожалению, исходя из предложенных данных не получится даже проверить догадки по поводу делового характера поездок у тех пассажиров кто низко оценил качество вай фая
+
+```
+<br/><br/>
+
+**Answer:** Primarily, guests from the United Kingdom, the United States, and the United Arab Emirates rate wi-fi quality in airports the lowest.
+
+**Conclusion:** It's currently impossible to make meaningful conclusions based on the provided data because the vast majority of guest reviews did not include feedback on wi-fi network connectivity. The United Kingdom, whose citizens were the most dissatisfied, ranks 46th in the world for internet speed as of 2020, so it's unlikely that the issue lies solely with internet speed. There's a hypothesis regarding the United Arab Emirates - perhaps inappropriate advertisements for Muslims appear when connecting to wi-fi, but this cannot be confirmed or denied with the provided data. More reliable information is available about wi-fi quality in lounge areas, which does not contradict the list of countries identified in the initial answer and even supports it. However, concrete conclusions are difficult to draw here as well. Attempting to identify any patterns, such as confirming or refuting the hypothesis that passengers who
+
+#### Question 2
+
+**Question:**  Which countries' users more frequently use the word "good" (but not "not good") in negative reviews of airports? In other words, they find something good but do not recommend overall.
+
+**Data:** To answer the question, the airport table is needed, and indirectly, the seat and airline tables will be involved.
+<br/><br/>
+
+```{r include = FALSE}
+airport1 = airport %>% filter(overall_rating < 5) %>% select(content, author_country) %>% mutate(content = str_to_lower(content)) %>% mutate(smth_good = str_detect(content,'(?<!\\bnot\\b\\s)\\bgood\\b')) %>% na.omit(author_country, overall_rating) %>% filter(smth_good == TRUE) %>% select(-content, -smth_good) %>% group_by(author_country)%>%count() %>% ungroup
+
+airport1 = airport1[with(airport1, order(-n)),]
+airport1 = airport1[1:7,]
+```
+
+```{r fig.align = 'left', echo = FALSE}
+ggplot(data = airport1) +
+  geom_bar(aes(x=reorder(author_country,-n), y = n), stat = "identity", fill = "#A0FFFF") + geom_bar(top_n(airport1, 3, n), mapping = aes(x= author_country, y = n), stat = "identity", fill = "#17Ecec")+
+  ggtitle("Number of negative feedbacks which include \nsome positive imressions by citizens of\ndifferent countries") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1.1), axis.title.x = element_blank(), plot.title = element_text(hjust = 0.5),panel.border = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(), panel.background = element_rect(fill = "white", colour = "white"),axis.ticks.x = element_blank(),axis.ticks.y = element_blank()) +
+  ylab("Number of feedbacks") 
+
+```
+<br/><br/>
+```{r include = FALSE}
+#Снова те же страны что и в вопросе 1, проверим, может и все остальное низко оценивают преимущественно пассажаиры из тех же стран (просто по табличкам)
+
+airline1 = airline %>% filter(overall_rating < 5) %>% select(author_country) %>%  na.omit(author_country, overall_rating)%>% group_by(author_country)%>%count()%>% ungroup %>% top_n(4,n)
+
+seat1 = seat %>% filter(overall_rating < 5) %>% select(author_country) %>%  na.omit(author_country, overall_rating)%>% group_by(author_country)%>%count()%>% ungroup %>% top_n(4,n)
+
+airport1 = airport %>% na.omit(airport_staff_rating) %>% filter(airport_staff_rating < 5) %>% select(author_country) %>% group_by(author_country)%>%count()%>% ungroup %>% top_n(4,n) #подтвердить главное предположение из вывода не удастся
+```
+
+
+**Answer:** British, American, and Australian citizens more frequently leave negative reviews with mentions of something good.
+
+**Conclusion:**  In response to both the first and second questions, four English-speaking countries with a high standard of living—Canada, the USA, the UK, and Australia—were mentioned. Specifically checking the hypothesis that the overall rating of airlines and seats on airplanes is lower for passengers from the same countries, several assumptions can be made. I must emphasize that further in-depth analysis will be required to verify this (!). The fact that positive aspects did not play a significant role in airport reviews indicates the high standards to which residents of these countries are accustomed. However, it is more likely that ratings are generally lower due to insufficient English language proficiency among airport staff. Additionally, there are cases where Wi-Fi connections are impossible due to instructions in a foreign language. This problem can occur at airports, lounges, and on airplanes (for example, some airplane TVs initially use a language other than English when turned on). English-speaking nations likely have a more acute reaction to communication problems in the official international language. Accordingly, considering modern realities, it is recommended to select air transport staff based on their English language proficiency. It is also necessary to address the lack of data on airport staff ratings for further monitoring.
+<br/><br/>
+
+#### Question 3
+
+**Question:**  What is the relationship between the overall rating of airports and the average rating of lounges in the airports? Is it true that the impression of the airport affects the rating of the lounges?
+
+**Data:** To answer this question, we need the airport and lounge tables.
+<br/><br/>
+
+```{r include = FALSE}
+ airport1 = airport %>% select(airport_name, overall_rating) %>% na.omit(airport_name, overall_rating) %>% group_by(airport_name) %>% summarize(mean_rate_airport = mean(overall_rating))
+
+#похоже шкала оценивания не определена в опросе про лаунж зоны, но судя по всему она пятибальная
+lounge2 = lounge %>% count(overall_rating > 5)
+head(lounge2) # лучше убрать окенци > 5
+
+ lounge1 = lounge %>% filter(overall_rating < 6) %>% select(airport_name, overall_rating) %>% na.omit(airport_name, overall_rating) %>% group_by(airport_name) %>% summarize(mean_rate_lounge = mean(overall_rating))
+ 
+my_table = inner_join(airport1, lounge1, by = "airport_name")
+```
+
+```{r fig.align = 'left', echo = FALSE}
+ggplot(data = my_table) +
+  geom_point(aes(x = mean_rate_airport, y = mean_rate_lounge), color = "#17Ecec", size = 4) +
+  xlab('Airport overall mean rating') +
+  ylab('Lounge overall mean rating') +
+  ggtitle("Correlation between airports' and lounges' \nratings") +
+  theme(plot.title = element_text(hjust = 0.5),
+  panel.background = element_rect(fill = "#F5F5F5", colour = "#F5F5F5"), panel.grid.major = element_blank(),axis.ticks.y = element_blank(),axis.ticks.x = element_blank()) +
+  ylim(0.7,5.3) +
+  scale_x_continuous(breaks = pretty(my_table$mean_rate_airport, n = 10)) 
+   
+```
+
+```{r include = FALSE}
+my_table1 = my_table %>% count(mean_rate_lounge * 2 > mean_rate_airport)
+x = scales::percent(74/94)
+
+```
+<br/><br/>
+
+**Answer:** There is no clear correlation between the variables. However, it can be observed that there are no poor lounges in airports with very low ratings, suggesting that budget allocation may not be balanced and sufficient attention is given only to lounges. At the same time, lounges with an average rating of 5 are not found in such airports (airport rating = 1 | 2 | 3 => lounge rating < 5). Thus, an extremely negative impression of the airport somehow affects the lounge rating. Additionally, in 79% of cases, lounges are rated higher than the airports they are located in, but there is an issue of mismatching rating scales.
+
+**Conclusion:** Based on the answer obtained, it can be presumed that people's impression of the airport is mostly influenced by the time spent in the airport after completing all necessary procedures, checks, and baggage drop-offs. Otherwise, a negative experience during security checks and baggage drop-offs would affect the lounge rating, and we would see a more orderly picture on the graph. Generally, most people arrive at airports in advance and have enough time before boarding. In the tables for airports and lounges, most evaluation criteria (especially those with sufficient available data) are related to the time spent in the airport after all screenings and checks. Therefore, it is recommended to pay special attention to the quality of waiting areas, shops, and cafes. Also, it is important to ensure that passengers who have the privilege or desire to spend time in lounges feel prestigious and have sufficient advantage over regular waiting areas.
+
+### Dashboard
+
+**Element 1:** 
+- Type: Bar Charts (two) 
+- Question Answered: 1
+- Justification: Bar graphs were used because one variable is categorical and the other is numerical, making it visually straightforward.
+
+**Element 2:** 
+- Type: Bar Plot
+- Question Answered: 2
+- Justification: A bar graph was used for the same reason as in question 1.
+
+**Element 3:** 
+- Type: Scatterplot
+- Question Answered: 3
+- Justification: We attempted to find the relationship between two numerical variables, and scatterplots are often used to display correlations.
+
+**Element 4:** 
+- Type: Numbers (percentages)
+- Question Answered: 3
+- Justification: The scatterplot does not provide a clear answer to question 3, and other graphs are not suitable. However, we can highlight an important and closely related percentage.
+
+### General Conclusions
+
+Since the last question is practically unrelated to the first two, it is difficult to derive a single general conclusion. Nevertheless, there are several observations and recommendations that cannot be ignored.
+
+- Some important evaluation criteria are ignored by survey participants or may be missing from specific airport surveys and so on. It is highly recommended to partially supplement the missing data. Additionally, it is crucial that ONE scale is used for evaluation to avoid data processing difficulties and distortions in responses.
+
+- Although not certain, it seems that for quality airport service, there is indeed a lack of English-speaking or English-speaking staff. This may apply to Wi-Fi networks, shops, cafes, and check-in counters.
+
+- Attempting to find any correlation between airport ratings and lounges within them, I found that there cannot be a clear, simple relationship between them. Some peculiarities can be noticed, such as the generally higher ratings for lounges compared to airports, as well as relatively good ratings for lounges in poor airports.
